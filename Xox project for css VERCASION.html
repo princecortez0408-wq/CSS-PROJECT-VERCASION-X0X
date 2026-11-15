@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<8 lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>XOX</title>
+<style>
+:root{color-scheme:dark;--bg:#07040f;--panel:#0d0818;--line:#3b1d6b;--x:#ff2bd6;--o:#18e7ff;--ink:#e9e4ff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0}
+body{background:radial-gradient(circle at 50% 35%,#1a0b33 0,var(--bg) 65%);color:var(--ink);
+font-family:system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px}
+#status{font-size:1.25rem;font-weight:600;letter-spacing:.06em;height:1.5em;color:var(--x);text-shadow:0 0 8px currentColor,0 0 22px currentColor;transition:color .3s}
+#status.o{color:var(--o)}
+#status.pop{animation:stat .35s ease-out}
+@keyframes stat{from{transform:translateY(-8px) scale(.9);opacity:0}to{transform:none;opacity:1}}
+#board{display:grid;grid-template-columns:repeat(3,1fr);width:min(82vw,330px);aspect-ratio:1;gap:6px;padding:6px;border-radius:16px;
+background:var(--line);box-shadow:0 0 18px #7b2cff88,0 0 60px #7b2cff44}
+#board.shake{animation:shake .45s}
+@keyframes shake{20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+.c{position:relative;overflow:hidden;background:var(--panel);border:0;border-radius:10px;padding:0;cursor:pointer;
+font:700 clamp(2.5rem,17vw,4.6rem)/1 system-ui,sans-serif;color:var(--x);transition:box-shadow .2s,transform .15s}
+.c:not(.x):not(.o):hover{box-shadow:inset 0 0 14px #7b2cff99}
+.c:active{transform:scale(.93)}
+.c span{display:inline-block}
+.c.x{color:var(--x)}.c.o{color:var(--o)}
+.c.x span,.c.o span{text-shadow:0 0 6px currentColor,0 0 18px currentColor,0 0 40px currentColor;animation:pop .45s cubic-bezier(.2,1.6,.4,1)}
+@keyframes pop{0%{transform:scale(.1) rotate(-90deg);opacity:0}100%{transform:none;opacity:1}}
+.c.x::after,.c.o::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+background:radial-gradient(circle,currentColor 0,transparent 65%);opacity:0;animation:flash .55s ease-out}
+@keyframes flash{0%{opacity:.7;transform:scale(.2)}100%{opacity:0;transform:scale(1.6)}}
+.c.w{animation:win 1s ease-in-out infinite;box-shadow:inset 0 0 18px currentColor,0 0 18px currentColor}
+@keyframes win{50%{transform:scale(1.06);box-shadow:inset 0 0 30px currentColor,0 0 34px currentColor}}
+.btn{background:none;color:var(--o);border:1px solid var(--o);padding:10px 26px;border-radius:999px;font:600 1rem system-ui,sans-serif;cursor:pointer;
+box-shadow:0 0 10px #18e7ff66,inset 0 0 10px #18e7ff33;text-shadow:0 0 8px currentColor;transition:box-shadow .2s,transform .15s}
+.btn:hover{box-shadow:0 0 22px #18e7ffaa,inset 0 0 16px #18e7ff55}
+.btn:active{transform:scale(.94)}
+.c:focus-visible,.btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.bar{display:flex;gap:12px}
+/* win popup */
+dialog{background:var(--panel);color:var(--ink);border:1px solid var(--win,var(--x));border-radius:18px;padding:22px;width:min(84vw,340px);text-align:center;
+box-shadow:0 0 30px var(--win,var(--x)),0 0 80px #7b2cff55}
+dialog[open]{animation:dlg .5s cubic-bezier(.2,1.5,.4,1)}
+@keyframes dlg{from{transform:scale(.3) rotate(-6deg);opacity:0}to{transform:none;opacity:1}}
+dialog::backdrop{background:#000b;backdrop-filter:blur(4px)}
+#winTitle{margin:0 0 16px;font-size:1.6rem;color:var(--win);text-shadow:0 0 10px currentColor,0 0 28px currentColor}
+#winImg{width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;border:1px solid var(--win);box-shadow:0 0 18px var(--win);display:block;margin-bottom:18px}
+#noImg{aspect-ratio:1;border:2px dashed var(--win);border-radius:12px;display:grid;place-items:center;margin-bottom:18px;opacity:.8;padding:12px;font-size:.9rem}
+@media (prefers-reduced-motion:reduce){*,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important}}
+</style>
+</head>
+<body>
+<div id="status"></div>
+<div id="board"></div>
+<div class="bar"><button class="btn" id="reset">New game</button><button class="btn" id="mode">vs Bot</button></div>
+
+<dialog id="win">
+  <h2 id="winTitle"></h2>
+  <img id="winImg" alt="Winner" hidden>
+  <div id="noImg" hidden>Put surprise.gif<br>next to this file.</div>
+  <button class="btn" id="again">Play again</button>
+</dialog>
+
+<script>
+/* Save your GIF as surprise.gif in the same folder as this file. */
+const WIN_IMAGE = "surprise.gif";
+
+/* Victory sound: a file name ("victory.mp3"), a link, or a data: URI.
+   Use "" for no sound. */
+const WIN_SOUND = "victory.mp3";
+
+const W=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+const board=document.getElementById('board'),status=document.getElementById('status'),win=document.getElementById('win');
+let b,turn,over,t,bot=true;
+const cells=[...Array(9)].map((_,i)=>{
+  const c=document.createElement('button');c.className='c';c.setAttribute('aria-label','Cell '+(i+1));
+  c.onclick=()=>{if(bot&&turn==='O')return;play(i)};board.appendChild(c);return c;
+});
+function say(s){status.textContent=s;status.className=(turn==='O'?'o ':'')+'pop';void status.offsetWidth}
+let snd;
+function stopSound(){if(snd){snd.pause();snd=null}}
+function playSound(){
+  if(!WIN_SOUND)return;
+  stopSound();snd=new Audio(WIN_SOUND);snd.play().catch(()=>{});
+}
+function showWin(p){
+  const img=document.getElementById('winImg'),no=document.getElementById('noImg');
+  win.style.setProperty('--win',p==='X'?'var(--x)':'var(--o)');
+  document.getElementById('winTitle').textContent=p+' wins!';
+  img.hidden=false;no.hidden=true;
+  img.onerror=()=>{img.hidden=true;no.hidden=false};
+  img.src=WIN_IMAGE+'?'+Date.now();
+  win.showModal();
+  playSound();
+}
+function play(i){
+  if(over||b[i])return;
+  b[i]=turn;cells[i].innerHTML='<span>'+turn+'</span>';cells[i].classList.add(turn==='O'?'o':'x');
+  const w=W.find(l=>l.every(k=>b[k]===turn));
+  if(w){over=true;w.forEach(k=>cells[k].classList.add('w'));say(turn+' wins');const p=turn;t=setTimeout(()=>showWin(p),800);return}
+  if(b.every(Boolean)){over=true;status.className='';say('Draw');board.classList.remove('shake');void board.offsetWidth;board.classList.add('shake');return}
+  turn=turn==='X'?'O':'X';say(turn+'’s turn');
+  if(bot&&turn==='O')t=setTimeout(botMove,550);
+}
+function reset(){clearTimeout(t);stopSound();if(win.open)win.close();
+  b=Array(9).fill('');turn='X';over=false;board.classList.remove('shake');
+  cells.forEach(c=>{c.innerHTML='';c.className='c'});say('X’s turn')}
+function botMove(){
+  if(over)return;
+  const free=b.map((v,i)=>v?-1:i).filter(i=>i>=0);
+  const find=p=>free.find(i=>W.some(l=>l.includes(i)&&l.every(k=>k===i||b[k]===p)));
+  const pick=a=>a[Math.floor(Math.random()*a.length)];
+  let m;
+  if(Math.random()<.15)m=pick(free); /* sometimes slips up, so you can win */
+  else m=find('O')??find('X')??(b[4]?undefined:4)??pick(free.filter(i=>[0,2,6,8].includes(i)))??pick(free);
+  play(m);
+}
+const modeBtn=document.getElementById('mode');
+modeBtn.onclick=()=>{bot=!bot;modeBtn.textContent=bot?'vs Bot':'2 players';reset()};
+document.getElementById('reset').onclick=reset;
+document.getElementById('again').onclick=reset;
+reset();
+</script>
+</body>
